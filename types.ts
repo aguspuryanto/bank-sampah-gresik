@@ -25,6 +25,14 @@ export interface Transaction {
   status: 'pending' | 'completed';
 }
 
+export interface RedemptionRecord {
+  id: string;
+  date: string;
+  itemName: string;
+  pointsCost: number;
+  category: 'Cash' | 'Sembako' | 'Voucher';
+}
+
 export interface UserProfile {
   name: string;
   balance: number;

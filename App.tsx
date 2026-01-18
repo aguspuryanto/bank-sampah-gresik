@@ -1,7 +1,7 @@
 
 import React, { useState, useMemo, useEffect, useRef } from 'react';
 import Layout from './components/Layout';
-import { WasteCategory, Transaction, UserProfile, WasteBank } from './types';
+import { WasteCategory, Transaction, UserProfile, WasteBank, RedemptionRecord } from './types';
 import { WASTE_PRICES, WASTE_POINTS, GRESIK_WASTE_BANKS, REDEMPTION_ITEMS, EDUCATIONAL_GUIDES } from './constants';
 import { getGeminiResponse } from './services/geminiService';
 import L from 'leaflet';
@@ -27,7 +27,8 @@ import {
   Leaf,
   BarChart3,
   Navigation,
-  Info
+  Info,
+  History
 } from 'lucide-react';
 
 const App: React.FC = () => {
@@ -44,6 +45,11 @@ const App: React.FC = () => {
     { id: '1', date: '2023-10-24', category: WasteCategory.PLASTIC, weight: 5.2, value: 18200, points: 52, status: 'completed' },
     { id: '2', date: '2023-10-20', category: WasteCategory.PAPER, weight: 10, value: 25000, points: 50, status: 'completed' },
     { id: '3', date: '2023-10-15', category: WasteCategory.METAL, weight: 1.5, value: 9000, points: 22, status: 'completed' },
+  ]);
+
+  const [redemptionHistory, setRedemptionHistory] = useState<RedemptionRecord[]>([
+    { id: 'rh1', date: '2023-10-22', itemName: 'Beras 1kg', pointsCost: 150, category: 'Sembako' },
+    { id: 'rh2', date: '2023-10-18', itemName: 'Saldo Tunai Rp 10.000', pointsCost: 100, category: 'Cash' },
   ]);
 
   const mapRef = useRef<L.Map | null>(null);
@@ -87,12 +93,26 @@ const App: React.FC = () => {
       alert("Poin tidak cukup!");
       return;
     }
+    
+    const now = new Date();
+    const dateStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
+    
+    const newRedemption: RedemptionRecord = {
+      id: `rh-${Date.now()}`,
+      date: dateStr,
+      itemName: item.name,
+      pointsCost: item.pointsCost,
+      category: item.category
+    };
+
+    setRedemptionHistory(prev => [newRedemption, ...prev]);
     setUser(prev => ({
       ...prev,
       points: prev.points - item.pointsCost,
       balance: item.category === 'Cash' ? prev.balance + 10000 : prev.balance
     }));
-    alert(`Sukses menukarkan ${item.name}!`);
+    
+    alert(`Sukses menukarkan ${item.name}! Silakan cek riwayat penukaran.`);
   };
 
   // Map Initialization logic
@@ -108,7 +128,7 @@ const App: React.FC = () => {
       // Custom icon for Waste Bank
       const customIcon = L.divIcon({
         className: 'custom-div-icon',
-        html: `<div class="bg-emerald-600 text-white p-2 rounded-full shadow-lg border-2 border-white transform -translate-x-1/2 -translate-y-1/2 flex items-center justify-center">
+        html: `<div class="bg-emerald-600 text-white p-2 rounded-full shadow-lg border-2 border-white transform -translate-x-1/2 -translate-y-1/2 flex items-center justify-center transition-transform hover:scale-125 duration-200">
                 <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-leaf"><path d="M11 20A7 7 0 0 1 9.8 6.1C15.5 5 17 4.48 19 2c1 2 2 4.18 2 8 0 5.5-4.78 10-10 10Z"/><path d="M2 21c0-3 1.85-5.36 5.08-6C9.5 14.52 12 13 13 12"/></svg>
               </div>`,
         iconSize: [30, 30],
@@ -119,11 +139,18 @@ const App: React.FC = () => {
         const marker = L.marker([bank.coords.lat, bank.coords.lng], { icon: customIcon })
           .addTo(map)
           .bindPopup(`
-            <div class="p-2">
-              <h3 class="font-bold text-slate-800 text-sm">${bank.name}</h3>
-              <p class="text-[10px] text-slate-500 mt-1">${bank.address}</p>
+            <div class="p-2 min-w-[150px]">
+              <h3 class="font-bold text-slate-800 text-sm mb-1">${bank.name}</h3>
+              <p class="text-[10px] text-slate-500 mb-2 leading-relaxed">${bank.address}</p>
+              <button class="w-full bg-emerald-600 text-white text-[10px] py-1.5 rounded-lg font-bold uppercase tracking-wider">Setor Ke Sini</button>
             </div>
           `);
+
+        // Added explicit click handler to center map on marker click
+        marker.on('click', (e) => {
+          map.flyTo(e.latlng, 16);
+        });
+
         markersRef.current[bank.id] = marker;
       });
 
@@ -341,39 +368,97 @@ const App: React.FC = () => {
   );
 
   const renderTransactions = () => (
-    <div className="space-y-6 animate-fadeIn">
-      <div className="flex justify-between items-center">
-        <h2 className="text-2xl font-bold">Catatan Transaksi</h2>
-        <button className="bg-emerald-600 text-white px-5 py-2.5 rounded-2xl flex items-center gap-2 hover:bg-emerald-700 shadow-md transition-all active:scale-95">
-          <Plus size={18} /> Setor Baru
-        </button>
-      </div>
-      <div className="bg-white rounded-3xl shadow-sm border border-slate-100 overflow-hidden">
-        <div className="overflow-x-auto">
-          <table className="w-full">
-            <thead>
-              <tr className="bg-slate-50 border-b border-slate-100">
-                <th className="px-6 py-4 text-left text-xs font-semibold text-slate-500 uppercase tracking-wider">Tanggal</th>
-                <th className="px-6 py-4 text-left text-xs font-semibold text-slate-500 uppercase tracking-wider">Kategori</th>
-                <th className="px-6 py-4 text-left text-xs font-semibold text-slate-500 uppercase tracking-wider">Berat</th>
-                <th className="px-6 py-4 text-left text-xs font-semibold text-slate-500 uppercase tracking-wider">Poin</th>
-                <th className="px-6 py-4 text-left text-xs font-semibold text-slate-500 uppercase tracking-wider">Nilai (Rp)</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-slate-100">
-              {transactions.map((tx) => (
-                <tr key={tx.id} className="hover:bg-slate-50 transition-colors">
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-600">{tx.date}</td>
-                  <td className="px-6 py-4 whitespace-nowrap">
-                    <span className="px-3 py-1 rounded-full text-xs font-medium bg-emerald-50 text-emerald-700">{tx.category}</span>
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-800 font-medium">{tx.weight} kg</td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-orange-600 font-bold">+{tx.points} pts</td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-emerald-600 font-bold">{tx.value.toLocaleString('id-ID')}</td>
+    <div className="space-y-12 animate-fadeIn pb-10">
+      <div className="space-y-6">
+        <div className="flex justify-between items-center">
+          <h2 className="text-2xl font-bold flex items-center gap-3">
+            <History className="text-emerald-600" size={28} />
+            Setoran Sampah
+          </h2>
+          <button className="bg-emerald-600 text-white px-5 py-2.5 rounded-2xl flex items-center gap-2 hover:bg-emerald-700 shadow-md transition-all active:scale-95">
+            <Plus size={18} /> Setor Baru
+          </button>
+        </div>
+        <div className="bg-white rounded-3xl shadow-sm border border-slate-100 overflow-hidden">
+          <div className="overflow-x-auto">
+            <table className="w-full">
+              <thead>
+                <tr className="bg-slate-50 border-b border-slate-100">
+                  <th className="px-6 py-4 text-left text-xs font-semibold text-slate-500 uppercase tracking-wider">Tanggal</th>
+                  <th className="px-6 py-4 text-left text-xs font-semibold text-slate-500 uppercase tracking-wider">Kategori</th>
+                  <th className="px-6 py-4 text-left text-xs font-semibold text-slate-500 uppercase tracking-wider">Berat</th>
+                  <th className="px-6 py-4 text-left text-xs font-semibold text-slate-500 uppercase tracking-wider">Poin</th>
+                  <th className="px-6 py-4 text-left text-xs font-semibold text-slate-500 uppercase tracking-wider">Nilai (Rp)</th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
+              </thead>
+              <tbody className="divide-y divide-slate-100">
+                {transactions.map((tx) => (
+                  <tr key={tx.id} className="hover:bg-slate-50 transition-colors">
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-600">{tx.date}</td>
+                    <td className="px-6 py-4 whitespace-nowrap">
+                      <span className="px-3 py-1 rounded-full text-xs font-medium bg-emerald-50 text-emerald-700">{tx.category}</span>
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-800 font-medium">{tx.weight} kg</td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-orange-600 font-bold">+{tx.points} pts</td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-emerald-600 font-bold">{tx.value.toLocaleString('id-ID')}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
+      <div className="space-y-6">
+        <h2 className="text-2xl font-bold flex items-center gap-3">
+          <Gift className="text-orange-600" size={28} />
+          Riwayat Penukaran Poin
+        </h2>
+        <div className="bg-white rounded-3xl shadow-sm border border-slate-100 overflow-hidden">
+          <div className="overflow-x-auto">
+            <table className="w-full">
+              <thead>
+                <tr className="bg-slate-50 border-b border-slate-100">
+                  <th className="px-6 py-4 text-left text-xs font-semibold text-slate-500 uppercase tracking-wider">Tanggal</th>
+                  <th className="px-6 py-4 text-left text-xs font-semibold text-slate-500 uppercase tracking-wider">Item Hadiah</th>
+                  <th className="px-6 py-4 text-left text-xs font-semibold text-slate-500 uppercase tracking-wider">Kategori</th>
+                  <th className="px-6 py-4 text-left text-xs font-semibold text-slate-500 uppercase tracking-wider">Poin Digunakan</th>
+                  <th className="px-6 py-4 text-left text-xs font-semibold text-slate-500 uppercase tracking-wider">Status</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-100">
+                {redemptionHistory.length > 0 ? (
+                  redemptionHistory.map((rh) => (
+                    <tr key={rh.id} className="hover:bg-slate-50 transition-colors">
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-600">{rh.date}</td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-800 font-bold">{rh.itemName}</td>
+                      <td className="px-6 py-4 whitespace-nowrap">
+                        <span className={`px-3 py-1 rounded-full text-xs font-medium ${
+                          rh.category === 'Cash' ? 'bg-blue-50 text-blue-700' :
+                          rh.category === 'Sembako' ? 'bg-amber-50 text-amber-700' :
+                          'bg-purple-50 text-purple-700'
+                        }`}>
+                          {rh.category}
+                        </span>
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-red-500 font-bold">-{rh.pointsCost} pts</td>
+                      <td className="px-6 py-4 whitespace-nowrap">
+                        <span className="flex items-center gap-1 text-xs font-bold text-emerald-600">
+                          <CheckCircle2 size={14} /> Berhasil
+                        </span>
+                      </td>
+                    </tr>
+                  ))
+                ) : (
+                  <tr>
+                    <td colSpan={5} className="px-6 py-12 text-center text-slate-400 italic">
+                      Belum ada riwayat penukaran poin.
+                    </td>
+                  </tr>
+                )}
+              </tbody>
+            </table>
+          </div>
         </div>
       </div>
     </div>
