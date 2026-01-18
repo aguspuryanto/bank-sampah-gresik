@@ -21,12 +21,14 @@ export interface Transaction {
   category: WasteCategory;
   weight: number; // in kg
   value: number; // in IDR
+  points: number;
   status: 'pending' | 'completed';
 }
 
 export interface UserProfile {
   name: string;
   balance: number;
+  points: number;
   totalWaste: number;
   rank: string;
 }
@@ -34,4 +36,12 @@ export interface UserProfile {
 export interface ChatMessage {
   role: 'user' | 'model';
   text: string;
+}
+
+export interface RedemptionItem {
+  id: string;
+  name: string;
+  pointsCost: number;
+  category: 'Cash' | 'Sembako' | 'Voucher';
+  icon: string;
 }

@@ -1,6 +1,6 @@
 
 import React from 'react';
-import { Home, History, MapPin, MessageSquare, ShoppingBag, Leaf } from 'lucide-react';
+import { Home, History, MapPin, MessageSquare, ShoppingBag, Leaf, BookOpen } from 'lucide-react';
 
 interface LayoutProps {
   children: React.ReactNode;
@@ -12,6 +12,7 @@ const Layout: React.FC<LayoutProps> = ({ children, activeTab, setActiveTab }) =>
   const tabs = [
     { id: 'home', label: 'Beranda', icon: Home },
     { id: 'transactions', label: 'Setor', icon: History },
+    { id: 'edu', label: 'Edukasi', icon: BookOpen },
     { id: 'ai', label: 'Tanya AI', icon: MessageSquare },
     { id: 'locations', label: 'Lokasi', icon: MapPin },
     { id: 'market', label: 'Produk', icon: ShoppingBag },

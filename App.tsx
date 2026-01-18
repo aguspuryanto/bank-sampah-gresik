@@ -1,22 +1,33 @@
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useMemo, useEffect, useRef } from 'react';
 import Layout from './components/Layout';
 import { WasteCategory, Transaction, UserProfile, WasteBank } from './types';
-import { WASTE_PRICES, GRESIK_WASTE_BANKS } from './constants';
+import { WASTE_PRICES, WASTE_POINTS, GRESIK_WASTE_BANKS, REDEMPTION_ITEMS, EDUCATIONAL_GUIDES } from './constants';
 import { getGeminiResponse } from './services/geminiService';
+import L from 'leaflet';
 import { 
   Plus, 
   TrendingUp, 
   MapPin, 
-  ChevronRight, 
   Send, 
   Bot, 
   Clock, 
-  DollarSign, 
   Scale,
   ExternalLink,
   ArrowUpRight,
-  MessageSquare
+  MessageSquare,
+  Gift,
+  CheckCircle2,
+  Trash2,
+  BookOpen,
+  Scissors,
+  Lightbulb,
+  AlertCircle,
+  DollarSign,
+  Leaf,
+  BarChart3,
+  Navigation,
+  Info
 } from 'lucide-react';
 
 const App: React.FC = () => {
@@ -24,15 +35,37 @@ const App: React.FC = () => {
   const [user, setUser] = useState<UserProfile>({
     name: 'Warga Gresik',
     balance: 450000,
+    points: 1250,
     totalWaste: 124.5,
     rank: 'Pahlawan Lingkungan'
   });
 
   const [transactions, setTransactions] = useState<Transaction[]>([
-    { id: '1', date: '2023-10-24', category: WasteCategory.PLASTIC, weight: 5.2, value: 18200, status: 'completed' },
-    { id: '2', date: '2023-10-20', category: WasteCategory.PAPER, weight: 10, value: 25000, status: 'completed' },
-    { id: '3', date: '2023-10-15', category: WasteCategory.METAL, weight: 1.5, value: 9000, status: 'completed' },
+    { id: '1', date: '2023-10-24', category: WasteCategory.PLASTIC, weight: 5.2, value: 18200, points: 52, status: 'completed' },
+    { id: '2', date: '2023-10-20', category: WasteCategory.PAPER, weight: 10, value: 25000, points: 50, status: 'completed' },
+    { id: '3', date: '2023-10-15', category: WasteCategory.METAL, weight: 1.5, value: 9000, points: 22, status: 'completed' },
   ]);
+
+  const mapRef = useRef<L.Map | null>(null);
+  const markersRef = useRef<Record<string, L.Marker>>({});
+
+  // Generate mock trend data for the last 30 days
+  const trendData = useMemo(() => {
+    const data = [];
+    const now = new Date();
+    for (let i = 29; i >= 0; i--) {
+      const date = new Date(now);
+      date.setDate(now.getDate() - i);
+      const baseWeight = Math.sin(i / 2) * 2 + 5;
+      const weight = Math.max(0, baseWeight + (Math.random() * 4 - 2));
+      data.push({
+        day: date.getDate(),
+        month: date.toLocaleString('id-ID', { month: 'short' }),
+        weight: parseFloat(weight.toFixed(1))
+      });
+    }
+    return data;
+  }, []);
 
   const [aiHistory, setAiHistory] = useState<{role: 'user' | 'model', text: string}[]>([]);
   const [inputMessage, setInputMessage] = useState('');
@@ -40,23 +73,143 @@ const App: React.FC = () => {
 
   const handleSendMessage = async () => {
     if (!inputMessage.trim() || isAiLoading) return;
-    
     const userMsg = inputMessage;
     setInputMessage('');
     setAiHistory(prev => [...prev, { role: 'user', text: userMsg }]);
     setIsAiLoading(true);
-
     const response = await getGeminiResponse(aiHistory, userMsg);
     setAiHistory(prev => [...prev, { role: 'model', text: response }]);
     setIsAiLoading(false);
   };
 
+  const redeemPoints = (item: typeof REDEMPTION_ITEMS[0]) => {
+    if (user.points < item.pointsCost) {
+      alert("Poin tidak cukup!");
+      return;
+    }
+    setUser(prev => ({
+      ...prev,
+      points: prev.points - item.pointsCost,
+      balance: item.category === 'Cash' ? prev.balance + 10000 : prev.balance
+    }));
+    alert(`Sukses menukarkan ${item.name}!`);
+  };
+
+  // Map Initialization logic
+  useEffect(() => {
+    if (activeTab === 'locations' && !mapRef.current) {
+      const gresikCenter: [number, number] = [-7.161, 112.657];
+      const map = L.map('map-container').setView(gresikCenter, 13);
+      
+      L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+        attribution: '&copy; OpenStreetMap contributors'
+      }).addTo(map);
+
+      // Custom icon for Waste Bank
+      const customIcon = L.divIcon({
+        className: 'custom-div-icon',
+        html: `<div class="bg-emerald-600 text-white p-2 rounded-full shadow-lg border-2 border-white transform -translate-x-1/2 -translate-y-1/2 flex items-center justify-center">
+                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-leaf"><path d="M11 20A7 7 0 0 1 9.8 6.1C15.5 5 17 4.48 19 2c1 2 2 4.18 2 8 0 5.5-4.78 10-10 10Z"/><path d="M2 21c0-3 1.85-5.36 5.08-6C9.5 14.52 12 13 13 12"/></svg>
+              </div>`,
+        iconSize: [30, 30],
+        iconAnchor: [15, 15]
+      });
+
+      GRESIK_WASTE_BANKS.forEach(bank => {
+        const marker = L.marker([bank.coords.lat, bank.coords.lng], { icon: customIcon })
+          .addTo(map)
+          .bindPopup(`
+            <div class="p-2">
+              <h3 class="font-bold text-slate-800 text-sm">${bank.name}</h3>
+              <p class="text-[10px] text-slate-500 mt-1">${bank.address}</p>
+            </div>
+          `);
+        markersRef.current[bank.id] = marker;
+      });
+
+      mapRef.current = map;
+    }
+
+    return () => {
+      if (activeTab !== 'locations' && mapRef.current) {
+        mapRef.current.remove();
+        mapRef.current = null;
+        markersRef.current = {};
+      }
+    };
+  }, [activeTab]);
+
+  const focusOnBank = (bank: WasteBank) => {
+    if (mapRef.current) {
+      mapRef.current.flyTo([bank.coords.lat, bank.coords.lng], 16);
+      markersRef.current[bank.id]?.openPopup();
+    }
+    // Scroll map into view on mobile
+    if (window.innerWidth < 768) {
+      document.getElementById('map-container')?.scrollIntoView({ behavior: 'smooth' });
+    }
+  };
+
+  const renderWasteTrendChart = () => {
+    const maxWeight = Math.max(...trendData.map(d => d.weight)) || 1;
+    return (
+      <div className="bg-white rounded-3xl p-6 shadow-sm border border-slate-100 overflow-hidden">
+        <div className="flex justify-between items-center mb-8">
+          <div>
+            <h3 className="text-lg font-bold flex items-center gap-2">
+              <BarChart3 size={20} className="text-emerald-600" />
+              Tren Setoran Sampah
+            </h3>
+            <p className="text-xs text-slate-400">Total berat (Kg) dalam 30 hari terakhir</p>
+          </div>
+          <div className="text-right">
+            <span className="text-2xl font-black text-emerald-600">
+              {trendData.reduce((acc, curr) => acc + curr.weight, 0).toFixed(1)}
+            </span>
+            <span className="text-xs font-bold text-slate-400 ml-1">Kg Total</span>
+          </div>
+        </div>
+        <div className="relative h-48 w-full flex items-end gap-[2px] md:gap-1">
+          {trendData.map((d, i) => (
+            <div key={i} className="flex-1 group relative flex flex-col items-center justify-end h-full">
+              <div className="absolute bottom-full mb-2 bg-slate-800 text-white text-[10px] py-1 px-2 rounded opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-10 whitespace-nowrap">
+                {d.day} {d.month}: {d.weight} Kg
+              </div>
+              <div 
+                className="w-full bg-emerald-100 group-hover:bg-emerald-500 rounded-t-sm transition-all duration-300 ease-out relative"
+                style={{ height: `${(d.weight / maxWeight) * 100}%` }}
+              >
+                {i % 7 === 0 && (
+                  <div className="absolute -bottom-6 left-1/2 -translate-x-1/2 text-[10px] text-slate-400 font-medium whitespace-nowrap">
+                    {d.day} {d.month}
+                  </div>
+                )}
+              </div>
+            </div>
+          ))}
+        </div>
+        <div className="mt-8 pt-4 border-t border-slate-50 flex justify-between text-[10px] text-slate-400 font-bold uppercase tracking-wider">
+          <span>30 Hari Lalu</span>
+          <span>Hari Ini</span>
+        </div>
+      </div>
+    );
+  };
+
   const renderHome = () => (
-    <div className="space-y-6 animate-fadeIn">
+    <div className="space-y-6 animate-fadeIn pb-10">
       <section className="bg-emerald-700 rounded-3xl p-8 text-white shadow-xl overflow-hidden relative">
         <div className="relative z-10">
-          <p className="text-emerald-100 text-sm font-medium mb-1">Total Tabungan</p>
-          <h2 className="text-4xl font-bold mb-6">Rp {user.balance.toLocaleString('id-ID')}</h2>
+          <div className="flex justify-between items-start mb-6">
+            <div>
+              <p className="text-emerald-100 text-sm font-medium mb-1">Total Tabungan</p>
+              <h2 className="text-4xl font-bold">Rp {user.balance.toLocaleString('id-ID')}</h2>
+            </div>
+            <div className="bg-white/20 backdrop-blur-md rounded-2xl px-4 py-2 text-right">
+              <p className="text-[10px] uppercase font-bold text-emerald-100 tracking-wider">Poin B-Gres</p>
+              <p className="text-2xl font-black">{user.points} pts</p>
+            </div>
+          </div>
           <div className="grid grid-cols-2 gap-4">
             <div className="bg-white/10 backdrop-blur-md rounded-2xl p-4">
               <p className="text-xs text-emerald-100 uppercase tracking-wider mb-1">Total Setor</p>
@@ -76,11 +229,11 @@ const App: React.FC = () => {
         </div>
         <div className="absolute top-0 right-0 w-48 h-48 bg-emerald-500 rounded-full -mr-10 -mt-10 opacity-30"></div>
       </section>
-
+      {renderWasteTrendChart()}
       <div className="grid md:grid-cols-2 gap-6">
         <section className="bg-white rounded-3xl p-6 shadow-sm border border-slate-100">
           <div className="flex justify-between items-center mb-6">
-            <h3 className="text-lg font-bold flex items-center gap-2">
+            <h3 className="text-lg font-bold flex items-center gap-2 text-slate-800">
               <Clock size={20} className="text-emerald-600" />
               Aktivitas Terakhir
             </h3>
@@ -100,47 +253,90 @@ const App: React.FC = () => {
                 </div>
                 <div className="text-right">
                   <p className="font-bold text-emerald-600">+ Rp {tx.value.toLocaleString('id-ID')}</p>
-                  <p className="text-xs text-slate-400">{tx.weight} Kg</p>
+                  <p className="text-[10px] text-orange-600 font-bold">+{tx.points} pts</p>
                 </div>
               </div>
             ))}
           </div>
         </section>
-
         <section className="bg-white rounded-3xl p-6 shadow-sm border border-slate-100">
-          <h3 className="text-lg font-bold mb-6 flex items-center gap-2">
-            <TrendingUp size={20} className="text-emerald-600" />
-            Tips Hari Ini
+          <h3 className="text-lg font-bold mb-6 flex items-center gap-2 text-orange-600">
+            <Gift size={20} />
+            Tukar Poin
           </h3>
-          <div className="bg-amber-50 rounded-2xl p-4 border border-amber-100">
-            <p className="text-amber-800 text-sm italic">
-              "Pisahkan sampah plastik dan cuci bersih sebelum disetorkan. Sampah bersih memiliki nilai jual 20% lebih tinggi di Bank Sampah Gresik!"
-            </p>
+          <div className="space-y-3">
+            {REDEMPTION_ITEMS.slice(0, 3).map(item => (
+              <div key={item.id} className="flex items-center justify-between p-3 border border-slate-100 rounded-2xl bg-slate-50/50">
+                <div className="flex items-center gap-3">
+                  <div className="bg-white p-2 rounded-xl shadow-sm">
+                    <CheckCircle2 className="text-emerald-600" size={16} />
+                  </div>
+                  <div>
+                    <p className="text-sm font-bold text-slate-800">{item.name}</p>
+                    <p className="text-[10px] text-slate-500">{item.pointsCost} Poin</p>
+                  </div>
+                </div>
+                <button 
+                  onClick={() => redeemPoints(item)}
+                  className="px-4 py-1.5 bg-emerald-600 text-white text-xs font-bold rounded-xl hover:bg-emerald-700 active:scale-95 transition-all"
+                >
+                  Tukar
+                </button>
+              </div>
+            ))}
           </div>
-          <div className="mt-4 flex flex-wrap gap-2">
-            <span className="px-3 py-1 bg-slate-100 rounded-full text-xs text-slate-600">#ZeroWasteGresik</span>
-            <span className="px-3 py-1 bg-slate-100 rounded-full text-xs text-slate-600">#DaurUlang</span>
-          </div>
+          <button className="w-full mt-4 text-emerald-600 text-xs font-bold hover:underline">Lihat Semua Katalog Hadiah</button>
         </section>
       </div>
+    </div>
+  );
 
-      <section className="bg-white rounded-3xl p-6 shadow-sm border border-slate-100">
-        <h3 className="text-lg font-bold mb-4">4 Cara Menghasilkan Uang</h3>
+  const renderEducation = () => (
+    <div className="space-y-8 animate-fadeIn pb-10">
+      <div className="bg-white rounded-3xl p-8 border border-slate-100 shadow-sm relative overflow-hidden">
+        <div className="relative z-10 max-w-lg">
+          <h2 className="text-3xl font-black text-slate-900 mb-4 leading-tight">Mari Belajar Memilah,<br/><span className="text-emerald-600">Jaga Gresik Tetap Asri</span></h2>
+          <p className="text-slate-500 text-sm leading-relaxed">
+            Pengelolaan sampah dimulai dari rumah. Dengan memisahkan sampah sesuai jenisnya, Anda membantu ekosistem daur ulang bekerja lebih cepat.
+          </p>
+        </div>
+        <BookOpen className="absolute -right-8 -bottom-8 text-slate-50 w-64 h-64 -rotate-12" />
+      </div>
+      <div>
+        <h3 className="text-xl font-bold mb-6 flex items-center gap-2">
+          <Trash2 className="text-emerald-600" />
+          Panduan Visual Pemilahan
+        </h3>
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-          {[
-            { title: 'Pemilahan Efisien', desc: 'Pisahkan organik, plastik, kertas.' },
-            { title: 'Datangi Bank Sampah', desc: 'Jual ke pengepul lokal terdekat.' },
-            { title: 'Tukar Barang', desc: 'Poin bisa ditukar sembako/uang.' },
-            { title: 'Produk Kreatif', desc: 'Ubah sampah jadi kerajinan mahal.' }
-          ].map((item, idx) => (
-            <div key={idx} className="p-4 rounded-2xl bg-emerald-50 border border-emerald-100">
-              <div className="w-8 h-8 bg-emerald-700 text-white rounded-lg flex items-center justify-center font-bold mb-3">{idx + 1}</div>
-              <h4 className="font-bold text-emerald-800 mb-1">{item.title}</h4>
-              <p className="text-xs text-emerald-600 leading-relaxed">{item.desc}</p>
+          {EDUCATIONAL_GUIDES.map((guide, idx) => (
+            <div key={idx} className="bg-white rounded-3xl p-6 border border-slate-100 shadow-sm flex flex-col hover:border-emerald-200 transition-colors">
+              <div className={`w-12 h-12 rounded-2xl mb-4 flex items-center justify-center text-white
+                ${guide.color === 'blue' ? 'bg-blue-500' : ''}
+                ${guide.color === 'amber' ? 'bg-amber-500' : ''}
+                ${guide.color === 'slate' ? 'bg-slate-500' : ''}
+                ${guide.color === 'emerald' ? 'bg-emerald-500' : ''}
+              `}>
+                <Scale size={24} />
+              </div>
+              <h4 className="font-bold text-lg mb-3">{guide.category}</h4>
+              <ul className="space-y-2 mb-6 flex-1">
+                {guide.tips.map((tip, tIdx) => (
+                  <li key={tIdx} className="text-xs text-slate-500 flex items-start gap-2">
+                    <CheckCircle2 size={12} className="text-emerald-500 mt-0.5" />
+                    {tip}
+                  </li>
+                ))}
+              </ul>
+              <div className="pt-4 border-t border-slate-50">
+                <p className="text-[10px] uppercase font-bold text-slate-400 mb-2 flex items-center gap-1">
+                  <Scissors size={10} /> Ide Kreatif
+                </p>
+                <p className="text-xs font-medium text-slate-700">{guide.craftIdea}</p>
+              </div>
             </div>
           ))}
         </div>
-      </section>
+      </div>
     </div>
   );
 
@@ -152,7 +348,6 @@ const App: React.FC = () => {
           <Plus size={18} /> Setor Baru
         </button>
       </div>
-
       <div className="bg-white rounded-3xl shadow-sm border border-slate-100 overflow-hidden">
         <div className="overflow-x-auto">
           <table className="w-full">
@@ -161,8 +356,8 @@ const App: React.FC = () => {
                 <th className="px-6 py-4 text-left text-xs font-semibold text-slate-500 uppercase tracking-wider">Tanggal</th>
                 <th className="px-6 py-4 text-left text-xs font-semibold text-slate-500 uppercase tracking-wider">Kategori</th>
                 <th className="px-6 py-4 text-left text-xs font-semibold text-slate-500 uppercase tracking-wider">Berat</th>
+                <th className="px-6 py-4 text-left text-xs font-semibold text-slate-500 uppercase tracking-wider">Poin</th>
                 <th className="px-6 py-4 text-left text-xs font-semibold text-slate-500 uppercase tracking-wider">Nilai (Rp)</th>
-                <th className="px-6 py-4 text-left text-xs font-semibold text-slate-500 uppercase tracking-wider">Status</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
@@ -173,13 +368,8 @@ const App: React.FC = () => {
                     <span className="px-3 py-1 rounded-full text-xs font-medium bg-emerald-50 text-emerald-700">{tx.category}</span>
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-800 font-medium">{tx.weight} kg</td>
+                  <td className="px-6 py-4 whitespace-nowrap text-sm text-orange-600 font-bold">+{tx.points} pts</td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm text-emerald-600 font-bold">{tx.value.toLocaleString('id-ID')}</td>
-                  <td className="px-6 py-4 whitespace-nowrap">
-                    <span className="inline-flex items-center gap-1 text-xs text-blue-600 bg-blue-50 px-2 py-1 rounded-full">
-                      <div className="w-1.5 h-1.5 rounded-full bg-blue-600"></div>
-                      {tx.status === 'completed' ? 'Selesai' : 'Diproses'}
-                    </span>
-                  </td>
                 </tr>
               ))}
             </tbody>
@@ -190,26 +380,64 @@ const App: React.FC = () => {
   );
 
   const renderLocations = () => (
-    <div className="space-y-6 animate-fadeIn">
-      <h2 className="text-2xl font-bold">Lokasi Bank Sampah Gresik</h2>
-      <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-6">
-        {GRESIK_WASTE_BANKS.map(bank => (
-          <div key={bank.id} className="bg-white rounded-3xl p-6 shadow-sm border border-slate-100 flex flex-col hover:shadow-md transition-all">
-            <div className="bg-emerald-100 w-12 h-12 rounded-2xl flex items-center justify-center text-emerald-700 mb-4">
-              <MapPin size={24} />
+    <div className="h-full flex flex-col md:flex-row gap-6 animate-fadeIn pb-24 md:pb-0 overflow-hidden">
+      {/* Left Column: List of Banks */}
+      <div className="w-full md:w-2/5 flex flex-col gap-6 overflow-y-auto pr-2 custom-scrollbar">
+        <div className="sticky top-0 bg-slate-50/90 backdrop-blur pb-4 z-10">
+          <h2 className="text-2xl font-bold text-slate-800">Bank Sampah di Gresik</h2>
+          <p className="text-sm text-slate-500">Terdapat 7 lokasi resmi yang melayani setoran.</p>
+        </div>
+        
+        <div className="flex flex-col gap-4">
+          {GRESIK_WASTE_BANKS.map(bank => (
+            <div 
+              key={bank.id} 
+              onClick={() => focusOnBank(bank)}
+              className="bg-white rounded-3xl p-5 shadow-sm border border-slate-100 hover:border-emerald-300 transition-all cursor-pointer group active:scale-[0.98]"
+            >
+              <div className="flex items-start gap-4">
+                <div className="bg-emerald-100 w-10 h-10 rounded-2xl flex items-center justify-center text-emerald-700 group-hover:bg-emerald-600 group-hover:text-white transition-colors">
+                  <MapPin size={20} />
+                </div>
+                <div className="flex-1">
+                  <h3 className="font-bold text-slate-800 mb-1 group-hover:text-emerald-700 transition-colors">{bank.name}</h3>
+                  <p className="text-xs text-slate-500 leading-relaxed mb-4">{bank.address}</p>
+                  <div className="flex gap-2">
+                    <button className="flex-1 bg-emerald-50 text-emerald-700 py-2 rounded-xl text-[10px] font-bold uppercase tracking-wider hover:bg-emerald-100 transition-colors flex items-center justify-center gap-1">
+                      <Navigation size={12} /> Navigasi
+                    </button>
+                    <button className="px-3 bg-slate-50 text-slate-400 py-2 rounded-xl border border-slate-100 hover:text-emerald-600 hover:border-emerald-200 transition-colors">
+                      <Info size={14} />
+                    </button>
+                  </div>
+                </div>
+              </div>
             </div>
-            <h3 className="font-bold text-lg text-slate-800 mb-2">{bank.name}</h3>
-            <p className="text-sm text-slate-500 flex-1 leading-relaxed mb-4">{bank.address}</p>
-            <div className="flex gap-2">
-              <button className="flex-1 bg-emerald-50 text-emerald-700 py-2 rounded-xl text-sm font-semibold hover:bg-emerald-100 transition-colors flex items-center justify-center gap-2">
-                Rute <ArrowUpRight size={14} />
-              </button>
-              <button className="px-3 bg-slate-50 text-slate-400 py-2 rounded-xl border border-slate-100">
-                <ExternalLink size={14} />
-              </button>
-            </div>
-          </div>
-        ))}
+          ))}
+        </div>
+      </div>
+
+      {/* Right Column: Interactive Map */}
+      <div className="w-full md:w-3/5 h-[400px] md:h-full sticky top-0">
+        <div 
+          id="map-container" 
+          className="w-full h-full bg-slate-200 shadow-2xl shadow-emerald-900/10 border-4 border-white"
+        >
+          {/* Leaflet map will be mounted here */}
+        </div>
+        
+        {/* Floating Controls Overlay */}
+        <div className="absolute top-4 right-4 z-[100] flex flex-col gap-2">
+          <button 
+            onClick={() => {
+              if (mapRef.current) mapRef.current.setView([-7.161, 112.657], 13);
+            }}
+            className="bg-white p-3 rounded-2xl shadow-xl text-emerald-700 hover:bg-emerald-50 transition-colors border border-slate-100"
+            title="Reset Center"
+          >
+            <Navigation size={20} />
+          </button>
+        </div>
       </div>
     </div>
   );
@@ -227,7 +455,6 @@ const App: React.FC = () => {
           </p>
         </div>
       </div>
-
       <div className="flex-1 overflow-y-auto p-4 space-y-4 bg-slate-50/50">
         {aiHistory.length === 0 && (
           <div className="text-center py-12 px-6 max-w-sm mx-auto">
@@ -263,7 +490,6 @@ const App: React.FC = () => {
           </div>
         )}
       </div>
-
       <div className="bg-white p-4 border-t border-slate-100 rounded-b-3xl">
         <div className="flex gap-2">
           <input
@@ -292,7 +518,6 @@ const App: React.FC = () => {
         <h2 className="text-3xl font-bold mb-2">Galeri Kreasi Gresik</h2>
         <p className="text-emerald-50 opacity-90">Karya kreatif dari daur ulang sampah masyarakat Gresik.</p>
       </div>
-
       <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
         {[
           { name: 'Tas Anyaman Plastik', price: 45000, img: 'https://picsum.photos/seed/bag/400/400' },
@@ -322,6 +547,7 @@ const App: React.FC = () => {
     switch (activeTab) {
       case 'home': return renderHome();
       case 'transactions': return renderTransactions();
+      case 'edu': return renderEducation();
       case 'locations': return renderLocations();
       case 'ai': return renderAI();
       case 'market': return renderMarket();
@@ -331,7 +557,9 @@ const App: React.FC = () => {
 
   return (
     <Layout activeTab={activeTab} setActiveTab={setActiveTab}>
-      {renderContent()}
+      <div className="h-full">
+        {renderContent()}
+      </div>
     </Layout>
   );
 };
