@@ -1,0 +1,8 @@
+{
+  "name": "Bank Sampah Gresik (B-Gres)",
+  "description": "A comprehensive waste management and digital economy platform for the Gresik community to turn waste into wealth.",
+  "requestFramePermissions": [
+    "camera",
+    "geolocation"
+  ]
+}
