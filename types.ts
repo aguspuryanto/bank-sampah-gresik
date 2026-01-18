@@ -17,16 +17,18 @@ export interface WasteBank {
 
 export interface Transaction {
   id: string;
+  memberId: string;
   date: string;
   category: WasteCategory;
-  weight: number; // in kg
-  value: number; // in IDR
+  weight: number; 
+  value: number; 
   points: number;
   status: 'pending' | 'completed';
 }
 
 export interface RedemptionRecord {
   id: string;
+  memberId: string;
   date: string;
   itemName: string;
   pointsCost: number;
@@ -34,11 +36,13 @@ export interface RedemptionRecord {
 }
 
 export interface UserProfile {
+  id: string;
   name: string;
   balance: number;
   points: number;
   totalWaste: number;
   rank: string;
+  avatar?: string;
 }
 
 export interface ChatMessage {

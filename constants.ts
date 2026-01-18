@@ -1,5 +1,5 @@
 
-import { WasteCategory, WasteBank, RedemptionItem } from './types';
+import { WasteCategory, WasteBank, RedemptionItem, UserProfile } from './types';
 
 export const WASTE_PRICES: Record<WasteCategory, number> = {
   [WasteCategory.ORGANIC]: 500,
@@ -18,6 +18,19 @@ export const WASTE_POINTS: Record<WasteCategory, number> = {
   [WasteCategory.GLASS]: 8,
   [WasteCategory.OTHER]: 3,
 };
+
+export const INITIAL_MEMBERS: UserProfile[] = [
+  { id: 'm1', name: 'Ahmad Zaki', balance: 150000, points: 450, totalWaste: 45.5, rank: 'Pahlawan Lingkungan' },
+  { id: 'm2', name: 'Siti Aminah', balance: 85000, points: 210, totalWaste: 22.1, rank: 'Pejuang Kebersihan' },
+  { id: 'm3', name: 'Budi Santoso', balance: 210000, points: 680, totalWaste: 65.2, rank: 'Duta Eco-Gres' },
+  { id: 'm4', name: 'Dewi Lestari', balance: 45000, points: 120, totalWaste: 12.8, rank: 'Pemula Hijau' },
+  { id: 'm5', name: 'Eko Prasetyo', balance: 125000, points: 340, totalWaste: 38.4, rank: 'Pejuang Kebersihan' },
+  { id: 'm6', name: 'Farida Putri', balance: 320000, points: 950, totalWaste: 89.1, rank: 'Pahlawan Lingkungan' },
+  { id: 'm7', name: 'Guntur Wijaya', balance: 95000, points: 280, totalWaste: 29.5, rank: 'Pejuang Kebersihan' },
+  { id: 'm8', name: 'Hani Safitri', balance: 18000, points: 50, totalWaste: 5.2, rank: 'Pemula Hijau' },
+  { id: 'm9', name: 'Indra Kusuma', balance: 540000, points: 1540, totalWaste: 142.3, rank: 'Legenda Hijau Gresik' },
+  { id: 'm10', name: 'Joko Anwar', balance: 72000, points: 190, totalWaste: 19.8, rank: 'Pemula Hijau' },
+];
 
 export const REDEMPTION_ITEMS: RedemptionItem[] = [
   { id: 'r1', name: 'Saldo Tunai Rp 10.000', pointsCost: 100, category: 'Cash', icon: 'DollarSign' },
